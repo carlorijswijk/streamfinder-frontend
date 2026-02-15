@@ -436,3 +436,35 @@ nav {
     flex-direction: column;
   }
 }
+
+/* Additional styles for API integration */
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: #888;
+}
+
+.loading p {
+  font-size: 18px;
+}
+
+.no-poster {
+  font-size: 48px;
+  color: #444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.european-badge {
+  background: linear-gradient(135deg, #003399 0%, #FFD700 100%);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  margin-top: 8px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}

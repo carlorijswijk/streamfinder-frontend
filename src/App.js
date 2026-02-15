@@ -1,38 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 
-// API URL - change this to your Render backend URL
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
 function App() {
   const [currentView, setCurrentView] = useState('discover');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [europeanContent, setEuropeanContent] = useState([]);
   const [watchlist, setWatchlist] = useState([]);
   const [watched, setWatched] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('add');
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [userRating, setUserRating] = useState(0);
-  
-  // Manual add states
-  const [manualTitle, setManualTitle] = useState('');
-  const [manualYear, setManualYear] = useState('');
-  const [manualType, setManualType] = useState('series');
-  const [manualPlatform, setManualPlatform] = useState('Netflix');
-  const [lookupResults, setLookupResults] = useState([]);
-  const [isLookingUp, setIsLookingUp] = useState(false);
-  
-  // Mock data for now (later replace with API calls)
-  const mockMovies = [
-    { id: 1, title: "The Twelve", year: 2022, rating: 8.1, poster: "🎬", platforms: ["Netflix"], genre: "Drama", country: "BE", type: "series" },
-    { id: 2, title: "Lupin", year: 2021, rating: 7.5, poster: "🎭", platforms: ["Netflix"], genre: "Thriller", country: "FR", type: "series" },
-    { id: 3, title: "Dark", year: 2017, rating: 8.8, poster: "⚡", platforms: ["Netflix"], genre: "Sci-Fi", country: "DE", type: "series" },
-    { id: 4, title: "Money Heist", year: 2017, rating: 8.2, poster: "💰", platforms: ["Netflix"], genre: "Action", country: "ES", type: "series" },
-  ];
+  const [isLoading, setIsLoading] = useState(false);
 
-  const filteredMovies = mockMovies.filter(movie =>
-    movie.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Load European content on mount
+  useEffect(() => {
+    fetchEuropeanContent();
+  }, []);
+
+  const fetchEuropeanContent = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/discover/european`);
+      const data = await response.json();
+      setEuropeanContent(data);
+    } catch (error) {
+      console.error('Error fetching European content:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSearch = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/search?query=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      setSearchResults(data);
+    } catch (error) {
+      console.error('Error searching:', error);
+      setSearchResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleSearch(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const displayedMovies = searchQuery ? searchResults : europeanContent;
 
   const addToWatchlist = (movie) => {
     if (!watchlist.find(m => m.id === movie.id) && !watched.find(m => m.id === movie.id)) {
@@ -70,66 +100,6 @@ function App() {
     setWatched(watched.filter(m => m.id !== movieId));
   };
 
-  const openAddManualModal = () => {
-    setModalMode('add');
-    setManualTitle('');
-    setManualYear('');
-    setManualType('series');
-    setManualPlatform('Netflix');
-    setLookupResults([]);
-    setShowModal(true);
-  };
-
-  const handleLookup = () => {
-    if (!manualTitle.trim()) return;
-    
-    setIsLookingUp(true);
-    
-    // Mock lookup - replace with API call later
-    setTimeout(() => {
-      const results = mockMovies.filter(movie => 
-        movie.title.toLowerCase().includes(manualTitle.toLowerCase())
-      ).map(movie => ({
-        ...movie,
-        id: `lookup_${movie.id}`
-      }));
-      
-      setLookupResults(results);
-      setIsLookingUp(false);
-    }, 500);
-  };
-
-  const selectLookupResult = (movie) => {
-    setManualTitle(movie.title);
-    setManualYear(movie.year.toString());
-    setManualType(movie.type);
-    setLookupResults([]);
-  };
-
-  const addManualTitle = () => {
-    if (!manualTitle.trim() || !manualYear) {
-      alert('Vul minimaal titel en jaar in');
-      return;
-    }
-
-    const newMovie = {
-      id: `manual_${Date.now()}`,
-      title: manualTitle,
-      year: parseInt(manualYear),
-      type: manualType,
-      platforms: [manualPlatform],
-      rating: 0,
-      poster: '📝',
-      genre: 'Handmatig',
-      country: 'Manual'
-    };
-
-    setWatchlist([...watchlist, newMovie]);
-    setShowModal(false);
-    setManualTitle('');
-    setManualYear('');
-  };
-
   return (
     <div className="App">
       <header>
@@ -161,12 +131,6 @@ function App() {
           >
             ✅ Bekeken ({watched.length})
           </button>
-          <button 
-            className="nav-button"
-            onClick={openAddManualModal}
-          >
-            ➕ Handmatig toevoegen
-          </button>
         </nav>
 
         {currentView === 'discover' && (
@@ -182,46 +146,59 @@ function App() {
             </div>
 
             <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>
-              {searchQuery ? 'Zoekresultaten' : 'Europese Producties voor jou'}
+              {searchQuery ? `Zoekresultaten voor "${searchQuery}"` : 'Europese Producties voor jou'}
             </h2>
 
-            <div className="cards-grid">
-              {filteredMovies.map(movie => (
-                <div key={movie.id} className="movie-card">
-                  <div className="movie-poster">{movie.poster}</div>
-                  <div className="movie-info">
-                    <div className="movie-title">{movie.title}</div>
-                    <div className="movie-meta">
-                      <span>{movie.year}</span>
-                      <div className="rating">⭐ {movie.rating}</div>
+            {isLoading ? (
+              <div className="loading">
+                <p>Laden...</p>
+              </div>
+            ) : displayedMovies.length === 0 ? (
+              <div className="empty-state">
+                <h3>Geen resultaten gevonden</h3>
+                <p>Probeer een andere zoekopdracht</p>
+              </div>
+            ) : (
+              <div className="cards-grid">
+                {displayedMovies.map(movie => (
+                  <div key={movie.id} className="movie-card">
+                    <div className="movie-poster">
+                      {movie.poster ? (
+                        <img src={movie.poster} alt={movie.title} />
+                      ) : (
+                        <div className="no-poster">🎬</div>
+                      )}
                     </div>
-                    <div className="platforms">
-                      {movie.platforms.map(platform => (
-                        <span key={platform} className="platform-badge">
-                          {platform}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="action-buttons">
-                      <button 
-                        className="btn btn-primary"
-                        onClick={() => addToWatchlist(movie)}
-                        disabled={watchlist.find(m => m.id === movie.id) || watched.find(m => m.id === movie.id)}
-                      >
-                        {watchlist.find(m => m.id === movie.id) ? '✓ Op lijst' : 
-                         watched.find(m => m.id === movie.id) ? '✓ Gezien' : '+ Watchlist'}
-                      </button>
-                      <button 
-                        className="btn btn-secondary"
-                        onClick={() => openRatingModal(movie)}
-                      >
-                        ⭐ Beoordelen
-                      </button>
+                    <div className="movie-info">
+                      <div className="movie-title">{movie.title}</div>
+                      <div className="movie-meta">
+                        <span>{movie.year}</span>
+                        <div className="rating">⭐ {movie.rating}</div>
+                      </div>
+                      {movie.isEuropean && (
+                        <div className="european-badge">🇪🇺 Europees</div>
+                      )}
+                      <div className="action-buttons">
+                        <button 
+                          className="btn btn-primary"
+                          onClick={() => addToWatchlist(movie)}
+                          disabled={watchlist.find(m => m.id === movie.id) || watched.find(m => m.id === movie.id)}
+                        >
+                          {watchlist.find(m => m.id === movie.id) ? '✓ Op lijst' : 
+                           watched.find(m => m.id === movie.id) ? '✓ Gezien' : '+ Watchlist'}
+                        </button>
+                        <button 
+                          className="btn btn-secondary"
+                          onClick={() => openRatingModal(movie)}
+                        >
+                          ⭐ Beoordelen
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -237,19 +214,18 @@ function App() {
               <div className="cards-grid">
                 {watchlist.map(movie => (
                   <div key={movie.id} className="movie-card">
-                    <div className="movie-poster">{movie.poster}</div>
+                    <div className="movie-poster">
+                      {movie.poster ? (
+                        <img src={movie.poster} alt={movie.title} />
+                      ) : (
+                        <div className="no-poster">🎬</div>
+                      )}
+                    </div>
                     <div className="movie-info">
                       <div className="movie-title">{movie.title}</div>
                       <div className="movie-meta">
                         <span>{movie.year}</span>
                         <div className="rating">⭐ {movie.rating}</div>
-                      </div>
-                      <div className="platforms">
-                        {movie.platforms.map(platform => (
-                          <span key={platform} className="platform-badge">
-                            {platform}
-                          </span>
-                        ))}
                       </div>
                       <div className="action-buttons">
                         <button 
@@ -354,104 +330,6 @@ function App() {
                 disabled={userRating === 0}
               >
                 ✓ Markeer als Gezien
-              </button>
-            </div>
-          </div>
-        )}
-
-        {showModal && modalMode === 'add' && (
-          <div className="modal-overlay" onClick={() => setShowModal(false)}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <button className="modal-close" onClick={() => setShowModal(false)}>×</button>
-              <h2>Handmatig Titel Toevoegen</h2>
-              
-              <div className="form-group">
-                <label>Titel</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Bijv. The Crown" 
-                    value={manualTitle}
-                    onChange={(e) => setManualTitle(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleLookup()}
-                    style={{ flex: 1 }}
-                  />
-                  <button 
-                    className="btn btn-secondary"
-                    onClick={handleLookup}
-                    disabled={isLookingUp || !manualTitle.trim()}
-                    style={{ minWidth: '100px' }}
-                  >
-                    {isLookingUp ? '🔍 Zoeken...' : '🔍 Lookup'}
-                  </button>
-                </div>
-              </div>
-
-              {lookupResults.length > 0 && (
-                <div className="form-group">
-                  <label>Gevonden Resultaten</label>
-                  <div className="lookup-results">
-                    {lookupResults.map(result => (
-                      <div 
-                        key={result.id}
-                        onClick={() => selectLookupResult(result)}
-                        className="lookup-result-item"
-                      >
-                        <div style={{ fontWeight: '600' }}>{result.title}</div>
-                        <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
-                          {result.year} • {result.type} • ⭐ {result.rating}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#888', marginTop: '8px' }}>
-                    💡 Klik op een resultaat om de gegevens over te nemen
-                  </div>
-                </div>
-              )}
-
-              <div className="form-group">
-                <label>Jaar</label>
-                <input 
-                  type="number" 
-                  placeholder="2020" 
-                  value={manualYear}
-                  onChange={(e) => setManualYear(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Type</label>
-                <select 
-                  value={manualType}
-                  onChange={(e) => setManualType(e.target.value)}
-                >
-                  <option value="series">Serie</option>
-                  <option value="movie">Film</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Platform</label>
-                <select
-                  value={manualPlatform}
-                  onChange={(e) => setManualPlatform(e.target.value)}
-                >
-                  <option>Netflix</option>
-                  <option>HBO Max</option>
-                  <option>Disney+</option>
-                  <option>Amazon Prime</option>
-                  <option>Videoland</option>
-                  <option>NPO Start</option>
-                </select>
-              </div>
-
-              <button 
-                className="btn btn-primary" 
-                style={{ width: '100%', marginTop: '20px' }}
-                onClick={addManualTitle}
-              >
-                ➕ Toevoegen aan Watchlist
               </button>
             </div>
           </div>
