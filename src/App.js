@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const USER_ID = '1'; // Default user tot authenticatie is gebouwd
 
 function App() {
   const [currentView, setCurrentView] = useState('discover');
@@ -15,11 +16,11 @@ function App() {
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [userRating, setUserRating] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [recommendations, setRecommendations] = useState([]);
+  const [recsBasedOn, setRecsBasedOn] = useState([]);
+  const [recsLoading, setRecsLoading] = useState(false);
 
-  // Load European content on mount
-  useEffect(() => {
-    fetchEuropeanContent();
-  }, []);
+  // ===== DATA FETCHING =====
 
   const fetchEuropeanContent = async () => {
     setIsLoading(true);
@@ -34,12 +35,89 @@ function App() {
     }
   };
 
+  const parsePlatforms = (platforms) => {
+    if (!platforms) return [];
+    if (typeof platforms === 'string') {
+      try { return JSON.parse(platforms); } catch { return []; }
+    }
+    return platforms;
+  };
+
+  const fetchWatchlist = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/user/${USER_ID}/watchlist`);
+      const data = await response.json();
+      setWatchlist(data.map(item => ({
+        id: Number(item.content_id),
+        dbId: item.id,
+        title: item.title,
+        year: item.year,
+        type: item.type,
+        platforms: parsePlatforms(item.platforms),
+        poster: item.poster_url,
+        rating: item.rating || '0.0',
+        addedDate: item.added_date
+      })));
+    } catch (error) {
+      console.error('Error fetching watchlist:', error);
+    }
+  };
+
+  const fetchWatched = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/user/${USER_ID}/watched`);
+      const data = await response.json();
+      setWatched(data.map(item => ({
+        id: Number(item.content_id),
+        dbId: item.id,
+        title: item.title,
+        year: item.year,
+        type: item.type,
+        platforms: parsePlatforms(item.platforms),
+        poster: item.poster_url,
+        userRating: item.rating,
+        watchedDate: item.watched_date
+      })));
+    } catch (error) {
+      console.error('Error fetching watched:', error);
+    }
+  };
+
+  const fetchRecommendations = useCallback(async () => {
+    setRecsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/user/${USER_ID}/recommendations`);
+      const data = await response.json();
+      setRecommendations(data.recommendations || []);
+      setRecsBasedOn(data.basedOn || []);
+    } catch (error) {
+      console.error('Error fetching recommendations:', error);
+    } finally {
+      setRecsLoading(false);
+    }
+  }, []);
+
+  // Load data on mount
+  useEffect(() => {
+    fetchEuropeanContent();
+    fetchWatchlist();
+    fetchWatched();
+  }, []);
+
+  // Refresh aanbevelingen wanneer watched lijst verandert
+  useEffect(() => {
+    if (watched.length > 0) {
+      fetchRecommendations();
+    }
+  }, [watched.length, fetchRecommendations]);
+
+  // ===== ZOEKEN =====
+
   const handleSearch = async (query) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
     }
-
     setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/search?query=${encodeURIComponent(query)}`);
@@ -58,48 +136,181 @@ function App() {
     const timer = setTimeout(() => {
       handleSearch(searchQuery);
     }, 500);
-
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   const displayedMovies = searchQuery ? searchResults : europeanContent;
 
-  const addToWatchlist = (movie) => {
-    if (!watchlist.find(m => m.id === movie.id) && !watched.find(m => m.id === movie.id)) {
-      setWatchlist([...watchlist, movie]);
+  // ===== WATCHLIST ACTIES (met API) =====
+
+  const addToWatchlist = async (movie) => {
+    if (watchlist.find(m => m.id === movie.id) || watched.find(m => m.id === movie.id)) return;
+    try {
+      const response = await fetch(`${API_URL}/api/user/${USER_ID}/watchlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contentId: movie.id,
+          title: movie.title,
+          year: movie.year,
+          type: movie.type,
+          platforms: movie.platforms || [],
+          posterUrl: movie.poster
+        })
+      });
+      const saved = await response.json();
+      setWatchlist(prev => [...prev, { ...movie, dbId: saved.id }]);
+    } catch (error) {
+      console.error('Error adding to watchlist:', error);
     }
   };
 
-  const removeFromWatchlist = (movieId) => {
-    setWatchlist(watchlist.filter(m => m.id !== movieId));
+  const removeFromWatchlist = async (movie) => {
+    try {
+      await fetch(`${API_URL}/api/user/${USER_ID}/watchlist/${movie.dbId}`, { method: 'DELETE' });
+      setWatchlist(prev => prev.filter(m => m.id !== movie.id));
+    } catch (error) {
+      console.error('Error removing from watchlist:', error);
+    }
   };
+
+  // ===== WATCHED / RATING ACTIES (met API) =====
 
   const openRatingModal = (movie) => {
     setSelectedMovie(movie);
-    setUserRating(0);
+    // Als al beoordeeld, toon bestaande rating
+    const existingWatched = watched.find(m => m.id === movie.id);
+    setUserRating(existingWatched ? existingWatched.userRating : 0);
     setModalMode('rate');
     setShowModal(true);
   };
 
-  const markAsWatched = () => {
-    if (selectedMovie && userRating > 0) {
-      const watchedItem = {
-        ...selectedMovie,
-        userRating,
-        watchedDate: new Date().toISOString()
-      };
-      setWatched([watchedItem, ...watched]);
-      setWatchlist(watchlist.filter(m => m.id !== selectedMovie.id));
-      setShowModal(false);
-      setSelectedMovie(null);
-      setUserRating(0);
+  const markAsWatched = async () => {
+    if (!selectedMovie || userRating === 0) return;
+
+    // Check of het al in watched staat (dan rating updaten)
+    const existingWatched = watched.find(m => m.id === selectedMovie.id);
+
+    if (existingWatched) {
+      // Update bestaande rating
+      try {
+        await fetch(`${API_URL}/api/user/${USER_ID}/watched/${existingWatched.dbId}/rating`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rating: userRating })
+        });
+        setWatched(prev => prev.map(m =>
+          m.id === selectedMovie.id ? { ...m, userRating } : m
+        ));
+      } catch (error) {
+        console.error('Error updating rating:', error);
+      }
+    } else {
+      // Nieuw watched item aanmaken
+      try {
+        const response = await fetch(`${API_URL}/api/user/${USER_ID}/watched`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contentId: selectedMovie.id,
+            title: selectedMovie.title,
+            year: selectedMovie.year,
+            type: selectedMovie.type,
+            platforms: selectedMovie.platforms || [],
+            posterUrl: selectedMovie.poster,
+            rating: userRating
+          })
+        });
+        const saved = await response.json();
+        setWatched(prev => [{
+          ...selectedMovie,
+          dbId: saved.id,
+          userRating,
+          watchedDate: saved.watched_date || new Date().toISOString()
+        }, ...prev]);
+        // Verwijder uit watchlist als het daar in stond
+        setWatchlist(prev => prev.filter(m => m.id !== selectedMovie.id));
+      } catch (error) {
+        console.error('Error marking as watched:', error);
+      }
+    }
+
+    setShowModal(false);
+    setSelectedMovie(null);
+    setUserRating(0);
+  };
+
+  const removeFromWatched = async (movie) => {
+    try {
+      await fetch(`${API_URL}/api/user/${USER_ID}/watched/${movie.dbId}`, { method: 'DELETE' });
+      setWatched(prev => prev.filter(m => m.id !== movie.id));
+    } catch (error) {
+      console.error('Error removing from watched:', error);
     }
   };
 
-  const removeFromWatched = (movieId) => {
-    setWatched(watched.filter(m => m.id !== movieId));
+  // ===== HELPER: toon rating badge als item al beoordeeld is =====
+  const getWatchedRating = (movieId) => {
+    const item = watched.find(m => m.id === movieId);
+    return item ? item.userRating : null;
   };
 
+  // ===== HERBRUIKBARE MOVIE CARD COMPONENT =====
+  const renderMovieCard = (movie, showRecommendedBecause = false) => {
+    const existingRating = getWatchedRating(movie.id);
+    const isOnWatchlist = watchlist.find(m => m.id === movie.id);
+    const isWatched = watched.find(m => m.id === movie.id);
+
+    return (
+      <div key={movie.id} className="movie-card">
+        <div className="movie-poster">
+          {movie.poster ? (
+            <img src={movie.poster} alt={movie.title} />
+          ) : (
+            <div className="no-poster">🎬</div>
+          )}
+          {existingRating && (
+            <div className="user-rating-badge">
+              {'★'.repeat(existingRating)}
+            </div>
+          )}
+        </div>
+        <div className="movie-info">
+          <div className="movie-title">{movie.title}</div>
+          <div className="movie-meta">
+            <span>{movie.year}</span>
+            <div className="rating">⭐ {movie.rating}</div>
+          </div>
+          {movie.isEuropean && (
+            <div className="european-badge">🇪🇺 Europees</div>
+          )}
+          {showRecommendedBecause && movie.recommendedBecause && (
+            <div className="recommended-because">
+              Omdat je "{movie.recommendedBecause[0]}" leuk vond
+            </div>
+          )}
+          <div className="action-buttons">
+            <button
+              className="btn btn-primary"
+              onClick={() => addToWatchlist(movie)}
+              disabled={!!isOnWatchlist || !!isWatched}
+            >
+              {isOnWatchlist ? '✓ Op lijst' :
+               isWatched ? '✓ Gezien' : '+ Watchlist'}
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => openRatingModal(movie)}
+            >
+              {existingRating ? `★ ${existingRating}/5` : '⭐ Beoordelen'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ===== RENDER =====
   return (
     <div className="App">
       <header>
@@ -113,19 +324,25 @@ function App() {
 
       <div className="app-container">
         <nav>
-          <button 
+          <button
             className={`nav-button ${currentView === 'discover' ? 'active' : ''}`}
             onClick={() => setCurrentView('discover')}
           >
             🔍 Ontdekken
           </button>
-          <button 
+          <button
+            className={`nav-button ${currentView === 'voorjou' ? 'active' : ''}`}
+            onClick={() => { setCurrentView('voorjou'); fetchRecommendations(); }}
+          >
+            💡 Voor Jou {recommendations.length > 0 ? `(${recommendations.length})` : ''}
+          </button>
+          <button
             className={`nav-button ${currentView === 'watchlist' ? 'active' : ''}`}
             onClick={() => setCurrentView('watchlist')}
           >
             📌 Watchlist ({watchlist.length})
           </button>
-          <button 
+          <button
             className={`nav-button ${currentView === 'watched' ? 'active' : ''}`}
             onClick={() => setCurrentView('watched')}
           >
@@ -133,13 +350,14 @@ function App() {
           </button>
         </nav>
 
+        {/* ===== ONTDEKKEN TAB ===== */}
         {currentView === 'discover' && (
           <div>
             <div className="search-section">
               <input
                 type="text"
                 className="search-bar"
-                placeholder="Zoek films en series..."
+                placeholder="Zoek films en series... (bijv. 'Voor de meisjes')"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -160,48 +378,45 @@ function App() {
               </div>
             ) : (
               <div className="cards-grid">
-                {displayedMovies.map(movie => (
-                  <div key={movie.id} className="movie-card">
-                    <div className="movie-poster">
-                      {movie.poster ? (
-                        <img src={movie.poster} alt={movie.title} />
-                      ) : (
-                        <div className="no-poster">🎬</div>
-                      )}
-                    </div>
-                    <div className="movie-info">
-                      <div className="movie-title">{movie.title}</div>
-                      <div className="movie-meta">
-                        <span>{movie.year}</span>
-                        <div className="rating">⭐ {movie.rating}</div>
-                      </div>
-                      {movie.isEuropean && (
-                        <div className="european-badge">🇪🇺 Europees</div>
-                      )}
-                      <div className="action-buttons">
-                        <button 
-                          className="btn btn-primary"
-                          onClick={() => addToWatchlist(movie)}
-                          disabled={watchlist.find(m => m.id === movie.id) || watched.find(m => m.id === movie.id)}
-                        >
-                          {watchlist.find(m => m.id === movie.id) ? '✓ Op lijst' : 
-                           watched.find(m => m.id === movie.id) ? '✓ Gezien' : '+ Watchlist'}
-                        </button>
-                        <button 
-                          className="btn btn-secondary"
-                          onClick={() => openRatingModal(movie)}
-                        >
-                          ⭐ Beoordelen
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                {displayedMovies.map(movie => renderMovieCard(movie))}
               </div>
             )}
           </div>
         )}
 
+        {/* ===== VOOR JOU TAB ===== */}
+        {currentView === 'voorjou' && (
+          <div>
+            <h2 style={{ marginBottom: '10px', fontSize: '20px' }}>Aanbevolen voor jou</h2>
+            {recsBasedOn.length > 0 && (
+              <p className="recs-based-on">
+                Gebaseerd op: {recsBasedOn.join(', ')}
+              </p>
+            )}
+
+            {recsLoading ? (
+              <div className="loading"><p>Aanbevelingen laden...</p></div>
+            ) : recommendations.length === 0 ? (
+              <div className="empty-state">
+                <h3>Nog geen aanbevelingen</h3>
+                <p>Beoordeel minimaal 1 film of serie met 3 sterren of meer om persoonlijke aanbevelingen te krijgen.</p>
+                <button
+                  className="btn btn-primary"
+                  style={{ marginTop: '15px' }}
+                  onClick={() => setCurrentView('discover')}
+                >
+                  🔍 Ga naar Ontdekken
+                </button>
+              </div>
+            ) : (
+              <div className="cards-grid">
+                {recommendations.map(movie => renderMovieCard(movie, true))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ===== WATCHLIST TAB ===== */}
         {currentView === 'watchlist' && (
           <div>
             <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>Mijn Watchlist</h2>
@@ -228,15 +443,15 @@ function App() {
                         <div className="rating">⭐ {movie.rating}</div>
                       </div>
                       <div className="action-buttons">
-                        <button 
+                        <button
                           className="btn btn-primary"
                           onClick={() => openRatingModal(movie)}
                         >
                           ✓ Gezien
                         </button>
-                        <button 
+                        <button
                           className="btn btn-danger"
-                          onClick={() => removeFromWatchlist(movie.id)}
+                          onClick={() => removeFromWatchlist(movie)}
                         >
                           × Verwijder
                         </button>
@@ -249,6 +464,7 @@ function App() {
           </div>
         )}
 
+        {/* ===== BEKEKEN TAB ===== */}
         {currentView === 'watched' && (
           <div>
             <div className="stats-bar">
@@ -260,7 +476,7 @@ function App() {
                 <div className="stat-value">
                   {watched.length > 0 ? (watched.reduce((acc, m) => acc + m.userRating, 0) / watched.length).toFixed(1) : '0'}
                 </div>
-                <div className="stat-label">Gemiddelde Rating</div>
+                <div className="stat-label">Gem. Rating</div>
               </div>
               <div className="stat">
                 <div className="stat-value">{watchlist.length}</div>
@@ -272,29 +488,48 @@ function App() {
             {watched.length === 0 ? (
               <div className="empty-state">
                 <h3>Nog geen bekeken titels</h3>
-                <p>Beoordeel films en series die je hebt gezien</p>
+                <p>Zoek een film of serie en beoordeel deze om te beginnen</p>
               </div>
             ) : (
               <div>
                 {watched.map(movie => (
                   <div key={movie.id} className="watched-item">
+                    {movie.poster && (
+                      <img
+                        src={movie.poster}
+                        alt={movie.title}
+                        className="watched-poster"
+                      />
+                    )}
                     <div className="watched-info">
                       <h3>{movie.title} ({movie.year})</h3>
                       <p>
                         Jouw rating: <span style={{ color: '#f5c518', fontWeight: 'bold' }}>
-                          {'⭐'.repeat(movie.userRating)}
+                          {'★'.repeat(movie.userRating)}{'☆'.repeat(5 - movie.userRating)}
+                        </span>
+                        <span style={{ marginLeft: '8px', color: '#aaa' }}>
+                          {movie.userRating}/5
                         </span>
                       </p>
-                      <p style={{ fontSize: '11px', marginTop: '5px' }}>
+                      <p style={{ fontSize: '11px', marginTop: '5px', color: '#888' }}>
                         Bekeken op {new Date(movie.watchedDate).toLocaleDateString('nl-NL')}
                       </p>
                     </div>
-                    <button 
-                      className="btn btn-danger"
-                      onClick={() => removeFromWatched(movie.id)}
-                    >
-                      × Verwijder
-                    </button>
+                    <div className="watched-actions">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => openRatingModal(movie)}
+                        title="Rating aanpassen"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => removeFromWatched(movie)}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -302,12 +537,21 @@ function App() {
           </div>
         )}
 
+        {/* ===== RATING MODAL ===== */}
         {showModal && modalMode === 'rate' && (
           <div className="modal-overlay" onClick={() => setShowModal(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setShowModal(false)}>×</button>
               <h2>Beoordeel: {selectedMovie?.title}</h2>
-              
+
+              {selectedMovie?.poster && (
+                <img
+                  src={selectedMovie.poster}
+                  alt={selectedMovie.title}
+                  style={{ width: '120px', borderRadius: '8px', margin: '10px auto', display: 'block' }}
+                />
+              )}
+
               <div className="form-group">
                 <label>Jouw Rating</label>
                 <div className="star-rating">
@@ -321,15 +565,28 @@ function App() {
                     </span>
                   ))}
                 </div>
+                {userRating > 0 && (
+                  <p style={{ textAlign: 'center', marginTop: '8px', color: '#aaa' }}>
+                    {userRating}/5 - {
+                      userRating === 1 ? 'Slecht' :
+                      userRating === 2 ? 'Matig' :
+                      userRating === 3 ? 'Oké' :
+                      userRating === 4 ? 'Goed' :
+                      'Uitstekend!'
+                    }
+                  </p>
+                )}
               </div>
 
-              <button 
-                className="btn btn-primary" 
+              <button
+                className="btn btn-primary"
                 style={{ width: '100%', marginTop: '20px' }}
                 onClick={markAsWatched}
                 disabled={userRating === 0}
               >
-                ✓ Markeer als Gezien
+                {watched.find(m => m.id === selectedMovie?.id)
+                  ? '✓ Rating Bijwerken'
+                  : '✓ Markeer als Gezien'}
               </button>
             </div>
           </div>

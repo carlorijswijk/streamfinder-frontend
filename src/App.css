@@ -468,3 +468,90 @@ nav {
   text-align: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
+
+/* User Rating Badge op poster */
+.movie-poster {
+  position: relative;
+}
+
+.user-rating-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #f5c518;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  border: 1px solid #f5c518;
+}
+
+/* Aanbevelingen "omdat je X leuk vond" label */
+.recommended-because {
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.recs-based-on {
+  color: #888;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+/* Watched item met poster */
+.watched-item {
+  background: #1a1a1a;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.watched-poster {
+  width: 50px;
+  height: 75px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.watched-info {
+  flex: 1;
+}
+
+.watched-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Star rating in modal centreren */
+.star-rating {
+  display: flex;
+  gap: 5px;
+  font-size: 32px;
+  justify-content: center;
+}
+
+/* Nav met 4 knoppen beter verdelen */
+nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .watched-item {
+    flex-wrap: wrap;
+  }
+
+  .watched-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
