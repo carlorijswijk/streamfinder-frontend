@@ -4,6 +4,9 @@ import './App.css';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 const USER_ID = '1'; // Default user tot authenticatie is gebouwd
 
+// Beschikbare streaming platforms
+const ALL_PLATFORMS = ['Netflix', 'Amazon Prime', 'Disney+', 'HBO Max', 'Videoland', 'NPO Start'];
+
 function App() {
   const [currentView, setCurrentView] = useState('discover');
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,6 +22,10 @@ function App() {
   const [recommendations, setRecommendations] = useState([]);
   const [recsBasedOn, setRecsBasedOn] = useState([]);
   const [recsLoading, setRecsLoading] = useState(false);
+  // Profiel state
+  const [userPlatforms, setUserPlatforms] = useState([]);
+  const [userGenres, setUserGenres] = useState([]);
+  const [platformsChanged, setPlatformsChanged] = useState(false);
 
   // ===== DATA FETCHING =====
 
@@ -83,6 +90,31 @@ function App() {
     }
   };
 
+  const fetchPreferences = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/user/${USER_ID}/preferences`);
+      const data = await response.json();
+      setUserPlatforms(parsePlatforms(data.platforms));
+      setUserGenres(parsePlatforms(data.genres));
+    } catch (error) {
+      console.error('Error fetching preferences:', error);
+    }
+  };
+
+  const savePreferences = async (platforms) => {
+    try {
+      await fetch(`${API_URL}/api/user/${USER_ID}/preferences`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ genres: userGenres, platforms })
+      });
+      setUserPlatforms(platforms);
+      setPlatformsChanged(false);
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+    }
+  };
+
   const fetchRecommendations = useCallback(async () => {
     setRecsLoading(true);
     try {
@@ -102,6 +134,7 @@ function App() {
     fetchEuropeanContent();
     fetchWatchlist();
     fetchWatched();
+    fetchPreferences();
   }, []);
 
   // Refresh aanbevelingen wanneer watched lijst verandert
@@ -178,7 +211,6 @@ function App() {
 
   const openRatingModal = (movie) => {
     setSelectedMovie(movie);
-    // Als al beoordeeld, toon bestaande rating
     const existingWatched = watched.find(m => m.id === movie.id);
     setUserRating(existingWatched ? existingWatched.userRating : 0);
     setModalMode('rate');
@@ -188,11 +220,9 @@ function App() {
   const markAsWatched = async () => {
     if (!selectedMovie || userRating === 0) return;
 
-    // Check of het al in watched staat (dan rating updaten)
     const existingWatched = watched.find(m => m.id === selectedMovie.id);
 
     if (existingWatched) {
-      // Update bestaande rating
       try {
         await fetch(`${API_URL}/api/user/${USER_ID}/watched/${existingWatched.dbId}/rating`, {
           method: 'PATCH',
@@ -206,7 +236,6 @@ function App() {
         console.error('Error updating rating:', error);
       }
     } else {
-      // Nieuw watched item aanmaken
       try {
         const response = await fetch(`${API_URL}/api/user/${USER_ID}/watched`, {
           method: 'POST',
@@ -228,8 +257,9 @@ function App() {
           userRating,
           watchedDate: saved.watched_date || new Date().toISOString()
         }, ...prev]);
-        // Verwijder uit watchlist als het daar in stond
         setWatchlist(prev => prev.filter(m => m.id !== selectedMovie.id));
+        // Refresh preferences na rating (genre profiel wordt auto-updated)
+        setTimeout(() => fetchPreferences(), 2000);
       } catch (error) {
         console.error('Error marking as watched:', error);
       }
@@ -249,13 +279,35 @@ function App() {
     }
   };
 
-  // ===== HELPER: toon rating badge als item al beoordeeld is =====
+  // ===== PLATFORM TOGGLE =====
+  const togglePlatform = (platform) => {
+    const updated = userPlatforms.includes(platform)
+      ? userPlatforms.filter(p => p !== platform)
+      : [...userPlatforms, platform];
+    setUserPlatforms(updated);
+    setPlatformsChanged(true);
+  };
+
+  // ===== HELPERS =====
   const getWatchedRating = (movieId) => {
     const item = watched.find(m => m.id === movieId);
     return item ? item.userRating : null;
   };
 
-  // ===== HERBRUIKBARE MOVIE CARD COMPONENT =====
+  // Platform kleuren
+  const getPlatformColor = (platform) => {
+    const colors = {
+      'Netflix': '#E50914',
+      'Amazon Prime': '#00A8E1',
+      'Disney+': '#113CCF',
+      'HBO Max': '#B535F6',
+      'Videoland': '#FF6B00',
+      'NPO Start': '#FFA500'
+    };
+    return colors[platform] || '#666';
+  };
+
+  // ===== HERBRUIKBARE MOVIE CARD =====
   const renderMovieCard = (movie, showRecommendedBecause = false) => {
     const existingRating = getWatchedRating(movie.id);
     const isOnWatchlist = watchlist.find(m => m.id === movie.id);
@@ -281,6 +333,20 @@ function App() {
             <span>{movie.year}</span>
             <div className="rating">⭐ {movie.rating}</div>
           </div>
+          {/* Platform badges */}
+          {movie.platforms && movie.platforms.length > 0 && (
+            <div className="platform-badges">
+              {movie.platforms.map(p => (
+                <span
+                  key={p}
+                  className={`platform-badge ${userPlatforms.includes(p) ? 'owned' : ''}`}
+                  style={{ borderColor: getPlatformColor(p), color: getPlatformColor(p) }}
+                >
+                  {p}
+                </span>
+              ))}
+            </div>
+          )}
           {movie.isEuropean && (
             <div className="european-badge">🇪🇺 Europees</div>
           )}
@@ -348,6 +414,12 @@ function App() {
           >
             ✅ Bekeken ({watched.length})
           </button>
+          <button
+            className={`nav-button ${currentView === 'profiel' ? 'active' : ''}`}
+            onClick={() => setCurrentView('profiel')}
+          >
+            👤 Profiel
+          </button>
         </nav>
 
         {/* ===== ONTDEKKEN TAB ===== */}
@@ -368,9 +440,7 @@ function App() {
             </h2>
 
             {isLoading ? (
-              <div className="loading">
-                <p>Laden...</p>
-              </div>
+              <div className="loading"><p>Laden...</p></div>
             ) : displayedMovies.length === 0 ? (
               <div className="empty-state">
                 <h3>Geen resultaten gevonden</h3>
@@ -391,6 +461,7 @@ function App() {
             {recsBasedOn.length > 0 && (
               <p className="recs-based-on">
                 Gebaseerd op: {recsBasedOn.join(', ')}
+                {userPlatforms.length > 0 && ` | Beschikbaar op: ${userPlatforms.join(', ')}`}
               </p>
             )}
 
@@ -495,11 +566,7 @@ function App() {
                 {watched.map(movie => (
                   <div key={movie.id} className="watched-item">
                     {movie.poster && (
-                      <img
-                        src={movie.poster}
-                        alt={movie.title}
-                        className="watched-poster"
-                      />
+                      <img src={movie.poster} alt={movie.title} className="watched-poster" />
                     )}
                     <div className="watched-info">
                       <h3>{movie.title} ({movie.year})</h3>
@@ -507,33 +574,105 @@ function App() {
                         Jouw rating: <span style={{ color: '#f5c518', fontWeight: 'bold' }}>
                           {'★'.repeat(movie.userRating)}{'☆'.repeat(5 - movie.userRating)}
                         </span>
-                        <span style={{ marginLeft: '8px', color: '#aaa' }}>
-                          {movie.userRating}/5
-                        </span>
+                        <span style={{ marginLeft: '8px', color: '#aaa' }}>{movie.userRating}/5</span>
                       </p>
                       <p style={{ fontSize: '11px', marginTop: '5px', color: '#888' }}>
                         Bekeken op {new Date(movie.watchedDate).toLocaleDateString('nl-NL')}
                       </p>
                     </div>
                     <div className="watched-actions">
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => openRatingModal(movie)}
-                        title="Rating aanpassen"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="btn btn-danger"
-                        onClick={() => removeFromWatched(movie)}
-                      >
-                        ×
-                      </button>
+                      <button className="btn btn-secondary" onClick={() => openRatingModal(movie)} title="Rating aanpassen">✏️</button>
+                      <button className="btn btn-danger" onClick={() => removeFromWatched(movie)}>×</button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ===== PROFIEL TAB ===== */}
+        {currentView === 'profiel' && (
+          <div>
+            <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>Mijn Profiel</h2>
+
+            {/* Streaming Platforms */}
+            <div className="profile-section">
+              <h3>Mijn Streaming Abonnementen</h3>
+              <p className="profile-description">Selecteer de platforms waarop je een abonnement hebt. Aanbevelingen worden hierop gefilterd.</p>
+              <div className="platform-toggles">
+                {ALL_PLATFORMS.map(platform => (
+                  <button
+                    key={platform}
+                    className={`platform-toggle ${userPlatforms.includes(platform) ? 'active' : ''}`}
+                    style={userPlatforms.includes(platform) ? { borderColor: getPlatformColor(platform), backgroundColor: getPlatformColor(platform) + '22' } : {}}
+                    onClick={() => togglePlatform(platform)}
+                  >
+                    <span className="platform-toggle-indicator">
+                      {userPlatforms.includes(platform) ? '✓' : '+'}
+                    </span>
+                    {platform}
+                  </button>
+                ))}
+              </div>
+              {platformsChanged && (
+                <button
+                  className="btn btn-primary"
+                  style={{ marginTop: '15px' }}
+                  onClick={() => savePreferences(userPlatforms)}
+                >
+                  💾 Opslaan
+                </button>
+              )}
+            </div>
+
+            {/* Genre Profiel */}
+            <div className="profile-section">
+              <h3>Mijn Genre Profiel</h3>
+              <p className="profile-description">Automatisch opgebouwd op basis van je beoordelingen. Hoe meer je beoordeelt, hoe beter het profiel.</p>
+              {userGenres.length > 0 ? (
+                <div className="genre-tags">
+                  {userGenres.map((genre, index) => (
+                    <span
+                      key={genre}
+                      className="genre-tag"
+                      style={{ opacity: 1 - (index * 0.08) }}
+                    >
+                      {genre}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: '#888', fontStyle: 'italic' }}>
+                  Beoordeel films en series om je genre profiel op te bouwen.
+                </p>
+              )}
+            </div>
+
+            {/* Statistieken */}
+            <div className="profile-section">
+              <h3>Statistieken</h3>
+              <div className="stats-bar">
+                <div className="stat">
+                  <div className="stat-value">{watched.length}</div>
+                  <div className="stat-label">Bekeken</div>
+                </div>
+                <div className="stat">
+                  <div className="stat-value">
+                    {watched.length > 0 ? (watched.reduce((acc, m) => acc + m.userRating, 0) / watched.length).toFixed(1) : '0'}
+                  </div>
+                  <div className="stat-label">Gem. Rating</div>
+                </div>
+                <div className="stat">
+                  <div className="stat-value">{watchlist.length}</div>
+                  <div className="stat-label">Nog te zien</div>
+                </div>
+                <div className="stat">
+                  <div className="stat-value">{userPlatforms.length}</div>
+                  <div className="stat-label">Platforms</div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

@@ -545,6 +545,110 @@ nav {
   flex-wrap: wrap;
 }
 
+/* Platform badges op movie cards */
+.platform-badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.platform-badge {
+  border: 1px solid #666;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  background: transparent;
+}
+
+.platform-badge.owned {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Profiel pagina */
+.profile-section {
+  background: #1a1a1a;
+  border-radius: 8px;
+  padding: 25px;
+  margin-bottom: 20px;
+}
+
+.profile-section h3 {
+  color: #f5c518;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.profile-description {
+  color: #888;
+  font-size: 13px;
+  margin-bottom: 15px;
+}
+
+/* Platform toggles */
+.platform-toggles {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.platform-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: 2px solid #333;
+  border-radius: 8px;
+  background: transparent;
+  color: #e5e5e5;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.platform-toggle:hover {
+  border-color: #555;
+}
+
+.platform-toggle.active {
+  color: #fff;
+}
+
+.platform-toggle-indicator {
+  font-size: 16px;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #333;
+}
+
+.platform-toggle.active .platform-toggle-indicator {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Genre tags */
+.genre-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.genre-tag {
+  background: #2a2a2a;
+  border: 1px solid #f5c518;
+  color: #f5c518;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
   .watched-item {
     flex-wrap: wrap;
@@ -553,5 +657,13 @@ nav {
   .watched-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .platform-toggles {
+    flex-direction: column;
+  }
+
+  .platform-toggle {
+    width: 100%;
   }
 }
