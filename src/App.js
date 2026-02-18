@@ -644,7 +644,6 @@ function App() {
             {recsBasedOn.length > 0 && (
               <p className="recs-based-on">
                 Gebaseerd op: {recsBasedOn.join(', ')}
-                {userPlatforms.length > 0 && ` | Beschikbaar op: ${userPlatforms.join(', ')}`}
               </p>
             )}
 
@@ -663,9 +662,31 @@ function App() {
                 </button>
               </div>
             ) : (
-              <div className="cards-grid">
-                {recommendations.map(movie => renderMovieCard(movie, true))}
-              </div>
+              <>
+                {/* Content op jouw platforms */}
+                {userPlatforms.length > 0 && recommendations.filter(m => m.availableOnYourPlatform).length > 0 && (
+                  <>
+                    <h3 style={{ fontSize: '16px', color: '#f5c518', marginBottom: '15px' }}>
+                      ✓ Op jouw platforms ({userPlatforms.join(', ')})
+                    </h3>
+                    <div className="cards-grid">
+                      {recommendations.filter(m => m.availableOnYourPlatform).map(movie => renderMovieCard(movie, true))}
+                    </div>
+                  </>
+                )}
+
+                {/* Content op andere platforms */}
+                {recommendations.filter(m => !m.availableOnYourPlatform).length > 0 && (
+                  <>
+                    <h3 style={{ fontSize: '16px', color: '#888', marginBottom: '15px', marginTop: '25px' }}>
+                      Op andere platforms
+                    </h3>
+                    <div className="cards-grid">
+                      {recommendations.filter(m => !m.availableOnYourPlatform).map(movie => renderMovieCard(movie, true))}
+                    </div>
+                  </>
+                )}
+              </>
             )}
             {renderDetailTile()}
           </div>
