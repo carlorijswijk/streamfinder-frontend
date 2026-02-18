@@ -175,8 +175,6 @@ function App() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const displayedMovies = searchQuery ? searchResults : europeanContent;
-
   // ===== WATCHLIST ACTIES (met API) =====
 
   const addToWatchlist = async (movie) => {
@@ -579,12 +577,6 @@ function App() {
             🔍 Ontdekken
           </button>
           <button
-            className={`nav-button ${currentView === 'voorjou' ? 'active' : ''}`}
-            onClick={() => { setCurrentView('voorjou'); closeDetail(); fetchRecommendations(); }}
-          >
-            💡 Voor Jou {recommendations.length > 0 ? `(${recommendations.length})` : ''}
-          </button>
-          <button
             className={`nav-button ${currentView === 'watchlist' ? 'active' : ''}`}
             onClick={() => { setCurrentView('watchlist'); closeDetail(); }}
           >
@@ -607,85 +599,99 @@ function App() {
         {/* ===== ONTDEKKEN TAB ===== */}
         {currentView === 'discover' && (
           <div>
+            {/* Zoekbalk */}
             <div className="search-section">
               <input
                 type="text"
                 className="search-bar"
-                placeholder="Zoek films en series... (bijv. 'Voor de meisjes')"
+                placeholder="Zoek films en series... (bijv. 'Breaking Bad')"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
 
-            <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>
-              {searchQuery ? `Zoekresultaten voor "${searchQuery}"` : 'Europese Producties voor jou'}
-            </h2>
-
-            {isLoading ? (
-              <div className="loading"><p>Laden...</p></div>
-            ) : displayedMovies.length === 0 ? (
-              <div className="empty-state">
-                <h3>Geen resultaten gevonden</h3>
-                <p>Probeer een andere zoekopdracht</p>
-              </div>
-            ) : (
-              <div className="cards-grid">
-                {displayedMovies.map(movie => renderMovieCard(movie))}
-              </div>
-            )}
-            {renderDetailTile()}
-          </div>
-        )}
-
-        {/* ===== VOOR JOU TAB ===== */}
-        {currentView === 'voorjou' && (
-          <div>
-            <h2 style={{ marginBottom: '10px', fontSize: '20px' }}>Aanbevolen voor jou</h2>
-            {recsBasedOn.length > 0 && (
-              <p className="recs-based-on">
-                Gebaseerd op: {recsBasedOn.join(', ')}
-              </p>
-            )}
-
-            {recsLoading ? (
-              <div className="loading"><p>Aanbevelingen laden...</p></div>
-            ) : recommendations.length === 0 ? (
-              <div className="empty-state">
-                <h3>Nog geen aanbevelingen</h3>
-                <p>Beoordeel minimaal 1 film of serie met 3 sterren of meer om persoonlijke aanbevelingen te krijgen.</p>
-                <button
-                  className="btn btn-primary"
-                  style={{ marginTop: '15px' }}
-                  onClick={() => setCurrentView('discover')}
-                >
-                  🔍 Ga naar Ontdekken
-                </button>
-              </div>
+            {/* Zoekresultaten (vervangt alles als er een zoekopdracht is) */}
+            {searchQuery ? (
+              <>
+                <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>
+                  Zoekresultaten voor "{searchQuery}"
+                </h2>
+                {isLoading ? (
+                  <div className="loading"><p>Zoeken...</p></div>
+                ) : searchResults.length === 0 ? (
+                  <div className="empty-state">
+                    <h3>Geen resultaten gevonden</h3>
+                    <p>Probeer een andere zoekopdracht</p>
+                  </div>
+                ) : (
+                  <div className="cards-grid">
+                    {searchResults.map(movie => renderMovieCard(movie))}
+                  </div>
+                )}
+              </>
             ) : (
               <>
-                {/* Content op jouw platforms */}
-                {userPlatforms.length > 0 && recommendations.filter(m => m.availableOnYourPlatform).length > 0 && (
-                  <>
-                    <h3 style={{ fontSize: '16px', color: '#f5c518', marginBottom: '15px' }}>
-                      ✓ Op jouw platforms ({userPlatforms.join(', ')})
-                    </h3>
-                    <div className="cards-grid">
-                      {recommendations.filter(m => m.availableOnYourPlatform).map(movie => renderMovieCard(movie, true))}
-                    </div>
-                  </>
-                )}
+                {/* === SECTIE 1: Aanbevolen voor jou === */}
+                <div className="discover-section">
+                  <h2 className="section-title">💡 Aanbevolen voor jou</h2>
+                  {recsBasedOn.length > 0 && (
+                    <p className="section-subtitle">
+                      Op basis van je beoordelingen van {recsBasedOn.slice(0, 3).join(', ')}{recsBasedOn.length > 3 ? ` en ${recsBasedOn.length - 3} andere` : ''}
+                    </p>
+                  )}
 
-                {/* Content op andere platforms */}
-                {recommendations.filter(m => !m.availableOnYourPlatform).length > 0 && (
-                  <>
-                    <h3 style={{ fontSize: '16px', color: '#888', marginBottom: '15px', marginTop: '25px' }}>
-                      Op andere platforms
-                    </h3>
-                    <div className="cards-grid">
-                      {recommendations.filter(m => !m.availableOnYourPlatform).map(movie => renderMovieCard(movie, true))}
+                  {recsLoading ? (
+                    <div className="loading"><p>Aanbevelingen laden...</p></div>
+                  ) : recommendations.length === 0 ? (
+                    <div className="section-empty">
+                      <p>Beoordeel films en series om persoonlijke aanbevelingen te krijgen.</p>
                     </div>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      {/* Op jouw platforms */}
+                      {userPlatforms.length > 0 && recommendations.filter(m => m.availableOnYourPlatform).length > 0 && (
+                        <>
+                          <h3 className="subsection-title owned">
+                            ✓ Op jouw platforms
+                          </h3>
+                          <div className="cards-grid">
+                            {recommendations.filter(m => m.availableOnYourPlatform).map(movie => renderMovieCard(movie, true))}
+                          </div>
+                        </>
+                      )}
+
+                      {/* Op andere platforms */}
+                      {recommendations.filter(m => !m.availableOnYourPlatform).length > 0 && (
+                        <>
+                          <h3 className="subsection-title other">
+                            Op andere platforms
+                          </h3>
+                          <div className="cards-grid">
+                            {recommendations.filter(m => !m.availableOnYourPlatform).map(movie => renderMovieCard(movie, true))}
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* === SECTIE 2: Populair in Europa === */}
+                <div className="discover-section">
+                  <h2 className="section-title">🇪🇺 Populair in Europa</h2>
+                  <p className="section-subtitle">Trending Europese films en series</p>
+
+                  {isLoading ? (
+                    <div className="loading"><p>Laden...</p></div>
+                  ) : europeanContent.length === 0 ? (
+                    <div className="section-empty">
+                      <p>Geen Europese content beschikbaar</p>
+                    </div>
+                  ) : (
+                    <div className="cards-grid">
+                      {europeanContent.map(movie => renderMovieCard(movie))}
+                    </div>
+                  )}
+                </div>
               </>
             )}
             {renderDetailTile()}

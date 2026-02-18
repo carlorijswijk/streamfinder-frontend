@@ -501,6 +501,61 @@ nav {
   font-size: 13px;
 }
 
+/* Ontdekken secties */
+.discover-section {
+  margin-bottom: 40px;
+  padding-bottom: 30px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.discover-section:last-of-type {
+  border-bottom: none;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f5c518;
+  margin-bottom: 6px;
+}
+
+.section-subtitle {
+  color: #888;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.section-empty {
+  padding: 25px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.section-empty p {
+  color: #888;
+  font-size: 14px;
+}
+
+.subsection-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  margin-top: 20px;
+}
+
+.subsection-title.owned {
+  color: #f5c518;
+}
+
+.subsection-title.other {
+  color: #666;
+}
+
+.subsection-title:first-of-type {
+  margin-top: 0;
+}
+
 /* Watched item met poster */
 .watched-item {
   background: #1a1a1a;
