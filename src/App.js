@@ -26,6 +26,9 @@ function App() {
   const [userPlatforms, setUserPlatforms] = useState([]);
   const [userGenres, setUserGenres] = useState([]);
   const [platformsChanged, setPlatformsChanged] = useState(false);
+  // Detail tile state
+  const [selectedDetail, setSelectedDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // ===== DATA FETCHING =====
 
@@ -279,6 +282,32 @@ function App() {
     }
   };
 
+  // ===== DETAIL TILE =====
+  const fetchDetail = async (movie) => {
+    // Als dezelfde film al geselecteerd is, sluit detail
+    if (selectedDetail && selectedDetail.id === movie.id) {
+      setSelectedDetail(null);
+      return;
+    }
+    setDetailLoading(true);
+    try {
+      const mediaType = movie.type === 'tv' ? 'tv' : 'movie';
+      const response = await fetch(`${API_URL}/api/content/${mediaType}/${movie.id}`);
+      const data = await response.json();
+      setSelectedDetail(data);
+      // Scroll detail-tile in beeld
+      setTimeout(() => {
+        document.querySelector('.detail-tile')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    } catch (error) {
+      console.error('Error fetching detail:', error);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetail = () => setSelectedDetail(null);
+
   // ===== PLATFORM TOGGLE =====
   const togglePlatform = (platform) => {
     const updated = userPlatforms.includes(platform)
@@ -313,8 +342,12 @@ function App() {
     const isOnWatchlist = watchlist.find(m => m.id === movie.id);
     const isWatched = watched.find(m => m.id === movie.id);
 
+    const isSelected = selectedDetail && selectedDetail.id === movie.id;
+
     return (
-      <div key={movie.id} className="movie-card">
+      <div key={movie.id} className={`movie-card ${isSelected ? 'selected' : ''}`}
+        onClick={() => fetchDetail(movie)}
+      >
         <div className="movie-poster">
           {movie.poster ? (
             <img src={movie.poster} alt={movie.title} />
@@ -325,6 +358,9 @@ function App() {
             <div className="user-rating-badge">
               {'★'.repeat(existingRating)}
             </div>
+          )}
+          {detailLoading && isSelected && (
+            <div className="detail-loading-indicator">...</div>
           )}
         </div>
         <div className="movie-info">
@@ -358,7 +394,7 @@ function App() {
           <div className="action-buttons">
             <button
               className="btn btn-primary"
-              onClick={() => addToWatchlist(movie)}
+              onClick={(e) => { e.stopPropagation(); addToWatchlist(movie); }}
               disabled={!!isOnWatchlist || !!isWatched}
             >
               {isOnWatchlist ? '✓ Op lijst' :
@@ -366,10 +402,118 @@ function App() {
             </button>
             <button
               className="btn btn-secondary"
-              onClick={() => openRatingModal(movie)}
+              onClick={(e) => { e.stopPropagation(); openRatingModal(movie); }}
             >
               {existingRating ? `★ ${existingRating}/5` : '⭐ Beoordelen'}
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ===== DETAIL TILE RENDERER =====
+  const renderDetailTile = () => {
+    if (!selectedDetail) return null;
+    const existingRating = getWatchedRating(selectedDetail.id);
+    const isOnWatchlist = watchlist.find(m => m.id === selectedDetail.id);
+    const isWatched = watched.find(m => m.id === selectedDetail.id);
+    const detail = selectedDetail;
+
+    return (
+      <div className="detail-tile" onClick={closeDetail}>
+        <div className="detail-tile-inner" onClick={(e) => e.stopPropagation()}>
+          {/* Backdrop */}
+          <div className="detail-backdrop"
+            style={detail.backdrop ? { backgroundImage: `url(${detail.backdrop})` } : {}}
+          >
+            <div className="detail-backdrop-gradient" />
+            <button className="detail-close" onClick={closeDetail}>×</button>
+          </div>
+
+          {/* Content */}
+          <div className="detail-body">
+            <div className="detail-header">
+              {detail.poster && (
+                <img src={detail.poster} alt={detail.title} className="detail-poster" />
+              )}
+              <div className="detail-header-info">
+                <h2 className="detail-title">{detail.title}</h2>
+                <div className="detail-meta">
+                  <span className="detail-year">{detail.year}</span>
+                  <span className="detail-rating">⭐ {typeof detail.rating === 'number' ? detail.rating.toFixed(1) : detail.rating}</span>
+                  {detail.runtime && <span className="detail-runtime">{detail.runtime} min</span>}
+                  <span className="detail-type">{detail.type === 'tv' ? 'Serie' : 'Film'}</span>
+                </div>
+
+                {/* Genres */}
+                {detail.genres && detail.genres.length > 0 && (
+                  <div className="detail-genres">
+                    {detail.genres.map(g => (
+                      <span key={g} className="detail-genre-tag">{g}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* User rating */}
+                {existingRating && (
+                  <div className="detail-user-rating">
+                    Jouw rating: <span className="detail-stars">{'★'.repeat(existingRating)}{'☆'.repeat(5 - existingRating)}</span> {existingRating}/5
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Overview */}
+            {detail.overview && (
+              <div className="detail-overview">
+                <p>{detail.overview}</p>
+              </div>
+            )}
+
+            {/* Cast */}
+            {detail.cast && detail.cast.length > 0 && (
+              <div className="detail-cast">
+                <h4>Cast</h4>
+                <p>{detail.cast.join(', ')}</p>
+              </div>
+            )}
+
+            {/* Streaming Platforms */}
+            {detail.streamingPlatforms && detail.streamingPlatforms.length > 0 && (
+              <div className="detail-platforms">
+                <h4>Beschikbaar op</h4>
+                <div className="detail-platform-list">
+                  {detail.streamingPlatforms.map(p => (
+                    <span
+                      key={p}
+                      className={`detail-platform-badge ${userPlatforms.includes(p) ? 'owned' : ''}`}
+                      style={{ borderColor: getPlatformColor(p), color: getPlatformColor(p) }}
+                    >
+                      {userPlatforms.includes(p) && '✓ '}{p}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="detail-actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => addToWatchlist(detail)}
+                disabled={!!isOnWatchlist || !!isWatched}
+              >
+                {isOnWatchlist ? '✓ Op watchlist' :
+                 isWatched ? '✓ Gezien' : '+ Watchlist'}
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => openRatingModal(detail)}
+              >
+                {existingRating ? `★ ${existingRating}/5 - Aanpassen` : '⭐ Beoordelen'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -392,31 +536,31 @@ function App() {
         <nav>
           <button
             className={`nav-button ${currentView === 'discover' ? 'active' : ''}`}
-            onClick={() => setCurrentView('discover')}
+            onClick={() => { setCurrentView('discover'); closeDetail(); }}
           >
             🔍 Ontdekken
           </button>
           <button
             className={`nav-button ${currentView === 'voorjou' ? 'active' : ''}`}
-            onClick={() => { setCurrentView('voorjou'); fetchRecommendations(); }}
+            onClick={() => { setCurrentView('voorjou'); closeDetail(); fetchRecommendations(); }}
           >
             💡 Voor Jou {recommendations.length > 0 ? `(${recommendations.length})` : ''}
           </button>
           <button
             className={`nav-button ${currentView === 'watchlist' ? 'active' : ''}`}
-            onClick={() => setCurrentView('watchlist')}
+            onClick={() => { setCurrentView('watchlist'); closeDetail(); }}
           >
             📌 Watchlist ({watchlist.length})
           </button>
           <button
             className={`nav-button ${currentView === 'watched' ? 'active' : ''}`}
-            onClick={() => setCurrentView('watched')}
+            onClick={() => { setCurrentView('watched'); closeDetail(); }}
           >
             ✅ Bekeken ({watched.length})
           </button>
           <button
             className={`nav-button ${currentView === 'profiel' ? 'active' : ''}`}
-            onClick={() => setCurrentView('profiel')}
+            onClick={() => { setCurrentView('profiel'); closeDetail(); }}
           >
             👤 Profiel
           </button>
@@ -451,6 +595,7 @@ function App() {
                 {displayedMovies.map(movie => renderMovieCard(movie))}
               </div>
             )}
+            {renderDetailTile()}
           </div>
         )}
 
@@ -484,6 +629,7 @@ function App() {
                 {recommendations.map(movie => renderMovieCard(movie, true))}
               </div>
             )}
+            {renderDetailTile()}
           </div>
         )}
 
@@ -499,7 +645,10 @@ function App() {
             ) : (
               <div className="cards-grid">
                 {watchlist.map(movie => (
-                  <div key={movie.id} className="movie-card">
+                  <div key={movie.id}
+                    className={`movie-card ${selectedDetail && selectedDetail.id === movie.id ? 'selected' : ''}`}
+                    onClick={() => fetchDetail(movie)}
+                  >
                     <div className="movie-poster">
                       {movie.poster ? (
                         <img src={movie.poster} alt={movie.title} />
@@ -516,13 +665,13 @@ function App() {
                       <div className="action-buttons">
                         <button
                           className="btn btn-primary"
-                          onClick={() => openRatingModal(movie)}
+                          onClick={(e) => { e.stopPropagation(); openRatingModal(movie); }}
                         >
                           ✓ Gezien
                         </button>
                         <button
                           className="btn btn-danger"
-                          onClick={() => removeFromWatchlist(movie)}
+                          onClick={(e) => { e.stopPropagation(); removeFromWatchlist(movie); }}
                         >
                           × Verwijder
                         </button>
@@ -532,6 +681,7 @@ function App() {
                 ))}
               </div>
             )}
+            {renderDetailTile()}
           </div>
         )}
 
@@ -564,7 +714,11 @@ function App() {
             ) : (
               <div>
                 {watched.map(movie => (
-                  <div key={movie.id} className="watched-item">
+                  <div key={movie.id}
+                    className={`watched-item ${selectedDetail && selectedDetail.id === movie.id ? 'selected' : ''}`}
+                    onClick={() => fetchDetail(movie)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     {movie.poster && (
                       <img src={movie.poster} alt={movie.title} className="watched-poster" />
                     )}
@@ -581,13 +735,14 @@ function App() {
                       </p>
                     </div>
                     <div className="watched-actions">
-                      <button className="btn btn-secondary" onClick={() => openRatingModal(movie)} title="Rating aanpassen">✏️</button>
-                      <button className="btn btn-danger" onClick={() => removeFromWatched(movie)}>×</button>
+                      <button className="btn btn-secondary" onClick={(e) => { e.stopPropagation(); openRatingModal(movie); }} title="Rating aanpassen">✏️</button>
+                      <button className="btn btn-danger" onClick={(e) => { e.stopPropagation(); removeFromWatched(movie); }}>×</button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+            {renderDetailTile()}
           </div>
         )}
 
