@@ -566,6 +566,13 @@ nav {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.platform-badge.ppv {
+  border-color: #888;
+  color: #bbb;
+  border-style: dashed;
+  font-size: 9px;
+}
+
 /* Profiel pagina */
 .profile-section {
   background: #1a1a1a;
@@ -877,6 +884,17 @@ nav {
 
 .detail-platform-badge.owned {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.detail-platform-badge.ppv {
+  border-color: #888;
+  color: #bbb;
+  border-style: dashed;
+  font-size: 12px;
+}
+
+.detail-ppv h4 {
+  color: #aaa;
 }
 
 .detail-actions {

@@ -331,7 +331,13 @@ function App() {
       'Disney+': '#113CCF',
       'HBO Max': '#B535F6',
       'Videoland': '#FF6B00',
-      'NPO Start': '#FFA500'
+      'NPO Start': '#FFA500',
+      'Pathé Thuis': '#E6007E',
+      'Apple TV Store': '#555',
+      'Google Play': '#01875F',
+      'Amazon Video': '#00A8E1',
+      'YouTube': '#FF0000',
+      'Picl': '#1A1A2E'
     };
     return colors[platform] || '#666';
   };
@@ -379,6 +385,16 @@ function App() {
                   style={{ borderColor: getPlatformColor(p), color: getPlatformColor(p) }}
                 >
                   {p}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* PPV badges als geen streaming platforms */}
+          {(!movie.platforms || movie.platforms.length === 0) && movie.rentBuyPlatforms && movie.rentBuyPlatforms.length > 0 && (
+            <div className="platform-badges">
+              {movie.rentBuyPlatforms.slice(0, 2).map(p => (
+                <span key={p} className="platform-badge ppv">
+                  🎬 {p}
                 </span>
               ))}
             </div>
@@ -494,6 +510,28 @@ function App() {
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Pay-per-view / Huur/Koop Platforms */}
+            {detail.rentBuyPlatforms && detail.rentBuyPlatforms.length > 0 && (
+              <div className="detail-platforms detail-ppv">
+                <h4>Te huur / koop op</h4>
+                <div className="detail-platform-list">
+                  {detail.rentBuyPlatforms.map(p => (
+                    <span key={p} className="detail-platform-badge ppv">
+                      🎬 {p}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Niet beschikbaar melding */}
+            {detail.streamingPlatforms && detail.streamingPlatforms.length === 0 &&
+             detail.rentBuyPlatforms && detail.rentBuyPlatforms.length === 0 && (
+              <div className="detail-platforms">
+                <p style={{ color: '#888', fontStyle: 'italic' }}>Niet beschikbaar op Nederlandse streamingdiensten</p>
               </div>
             )}
 
