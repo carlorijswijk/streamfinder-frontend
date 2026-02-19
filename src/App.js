@@ -29,6 +29,14 @@ function App() {
   // Detail tile state
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Zoekfilter
+  const [searchFilter, setSearchFilter] = useState('all'); // 'all' | 'movie' | 'tv'
+  // Sortering
+  const [watchlistSort, setWatchlistSort] = useState('added'); // 'added' | 'title' | 'rating'
+  const [watchedSort, setWatchedSort] = useState('date'); // 'date' | 'title' | 'rating'
+  // Op jouw platforms
+  const [discoverContent, setDiscoverContent] = useState([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
 
   // ===== DATA FETCHING =====
 
@@ -132,12 +140,26 @@ function App() {
     }
   }, []);
 
+  const fetchDiscoverContent = async () => {
+    setDiscoverLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/user/${USER_ID}/discover`);
+      const data = await response.json();
+      setDiscoverContent(data.results || []);
+    } catch (error) {
+      console.error('Error fetching discover content:', error);
+    } finally {
+      setDiscoverLoading(false);
+    }
+  };
+
   // Load data on mount
   useEffect(() => {
     fetchEuropeanContent();
     fetchWatchlist();
     fetchWatched();
     fetchPreferences();
+    fetchDiscoverContent();
   }, []);
 
   // Refresh aanbevelingen wanneer watched lijst verandert
@@ -608,6 +630,15 @@ function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <div className="search-filters">
+                {[['all', 'Alles'], ['movie', '🎬 Films'], ['tv', '📺 Series']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`filter-btn ${searchFilter === val ? 'active' : ''}`}
+                    onClick={() => setSearchFilter(val)}
+                  >{label}</button>
+                ))}
+              </div>
             </div>
 
             {/* Zoekresultaten (vervangt alles als er een zoekopdracht is) */}
@@ -615,22 +646,42 @@ function App() {
               <>
                 <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>
                   Zoekresultaten voor "{searchQuery}"
+                  {searchFilter !== 'all' && <span style={{ fontSize: '14px', color: '#888', marginLeft: '10px' }}>({searchFilter === 'movie' ? 'Films' : 'Series'})</span>}
                 </h2>
                 {isLoading ? (
                   <div className="loading"><p>Zoeken...</p></div>
-                ) : searchResults.length === 0 ? (
+                ) : searchResults.filter(m => searchFilter === 'all' || m.type === searchFilter).length === 0 ? (
                   <div className="empty-state">
                     <h3>Geen resultaten gevonden</h3>
-                    <p>Probeer een andere zoekopdracht</p>
+                    <p>Probeer een andere zoekopdracht of filter</p>
                   </div>
                 ) : (
                   <div className="cards-grid">
-                    {searchResults.map(movie => renderMovieCard(movie))}
+                    {searchResults.filter(m => searchFilter === 'all' || m.type === searchFilter).map(movie => renderMovieCard(movie))}
                   </div>
                 )}
               </>
             ) : (
               <>
+                {/* === SECTIE 0: Op jouw platforms === */}
+                {userPlatforms.length > 0 && (
+                  <div className="discover-section">
+                    <h2 className="section-title">▶️ Op jouw platforms</h2>
+                    <p className="section-subtitle">Populair op {userPlatforms.join(', ')}</p>
+                    {discoverLoading ? (
+                      <div className="loading"><p>Laden...</p></div>
+                    ) : discoverContent.length === 0 ? (
+                      <div className="section-empty">
+                        <p>Geen content gevonden op jouw platforms</p>
+                      </div>
+                    ) : (
+                      <div className="cards-grid">
+                        {discoverContent.map(movie => renderMovieCard(movie))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* === SECTIE 1: Aanbevolen voor jou === */}
                 <div className="discover-section">
                   <h2 className="section-title">💡 Aanbevolen voor jou</h2>
@@ -701,7 +752,19 @@ function App() {
         {/* ===== WATCHLIST TAB ===== */}
         {currentView === 'watchlist' && (
           <div>
-            <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>Mijn Watchlist</h2>
+            <h2 style={{ marginBottom: '16px', fontSize: '20px' }}>Mijn Watchlist</h2>
+            {watchlist.length > 0 && (
+              <div className="sort-bar">
+                <span className="sort-label">Sorteren:</span>
+                {[['added', 'Toegevoegd'], ['title', 'Titel'], ['rating', 'TMDb Rating']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`filter-btn ${watchlistSort === val ? 'active' : ''}`}
+                    onClick={() => setWatchlistSort(val)}
+                  >{label}</button>
+                ))}
+              </div>
+            )}
             {watchlist.length === 0 ? (
               <div className="empty-state">
                 <h3>Je watchlist is leeg</h3>
@@ -709,7 +772,11 @@ function App() {
               </div>
             ) : (
               <div className="cards-grid">
-                {watchlist.map(movie => (
+                {[...watchlist].sort((a, b) => {
+                  if (watchlistSort === 'title') return a.title.localeCompare(b.title);
+                  if (watchlistSort === 'rating') return (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0);
+                  return new Date(b.addedDate) - new Date(a.addedDate);
+                }).map(movie => (
                   <div key={movie.id}
                     className={`movie-card ${selectedDetail && selectedDetail.id === movie.id ? 'selected' : ''}`}
                     onClick={() => fetchDetail(movie)}
@@ -770,7 +837,19 @@ function App() {
               </div>
             </div>
 
-            <h2 style={{ marginBottom: '20px', fontSize: '20px' }}>Bekeken Titels</h2>
+            <h2 style={{ marginBottom: '16px', fontSize: '20px' }}>Bekeken Titels</h2>
+            {watched.length > 0 && (
+              <div className="sort-bar">
+                <span className="sort-label">Sorteren:</span>
+                {[['date', 'Datum'], ['title', 'Titel'], ['rating', 'Jouw Rating']].map(([val, label]) => (
+                  <button
+                    key={val}
+                    className={`filter-btn ${watchedSort === val ? 'active' : ''}`}
+                    onClick={() => setWatchedSort(val)}
+                  >{label}</button>
+                ))}
+              </div>
+            )}
             {watched.length === 0 ? (
               <div className="empty-state">
                 <h3>Nog geen bekeken titels</h3>
@@ -778,7 +857,11 @@ function App() {
               </div>
             ) : (
               <div>
-                {watched.map(movie => (
+                {[...watched].sort((a, b) => {
+                  if (watchedSort === 'title') return a.title.localeCompare(b.title);
+                  if (watchedSort === 'rating') return (b.userRating || 0) - (a.userRating || 0);
+                  return new Date(b.watchedDate) - new Date(a.watchedDate);
+                }).map(movie => (
                   <div key={movie.id}
                     className={`watched-item ${selectedDetail && selectedDetail.id === movie.id ? 'selected' : ''}`}
                     onClick={() => fetchDetail(movie)}
