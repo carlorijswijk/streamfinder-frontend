@@ -29,6 +29,8 @@ function App() {
   // Detail tile state
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Beoordeeld maar niet gezien
+  const [rated, setRated] = useState([]);
   // Zoekfilter
   const [searchFilter, setSearchFilter] = useState('all'); // 'all' | 'movie' | 'tv'
   // Sortering
@@ -153,11 +155,32 @@ function App() {
     }
   };
 
+  const fetchRated = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/user/${USER_ID}/rated`);
+      const data = await response.json();
+      setRated(data.map(item => ({
+        id: Number(item.content_id),
+        dbId: item.id,
+        title: item.title,
+        year: item.year,
+        type: item.type,
+        platforms: parsePlatforms(item.platforms),
+        poster: item.poster_url,
+        userRating: item.rating,
+        watchedDate: item.watched_date
+      })));
+    } catch (error) {
+      console.error('Error fetching rated:', error);
+    }
+  };
+
   // Load data on mount
   useEffect(() => {
     fetchEuropeanContent();
     fetchWatchlist();
     fetchWatched();
+    fetchRated();
     fetchPreferences();
     fetchDiscoverContent();
   }, []);
@@ -235,30 +258,37 @@ function App() {
   const openRatingModal = (movie) => {
     setSelectedMovie(movie);
     const existingWatched = watched.find(m => m.id === movie.id);
-    setUserRating(existingWatched ? existingWatched.userRating : 0);
+    const existingRated = rated.find(m => m.id === movie.id);
+    setUserRating(existingWatched ? existingWatched.userRating : existingRated ? existingRated.userRating : 0);
     setModalMode('rate');
     setShowModal(true);
   };
 
-  const markAsWatched = async () => {
+  const submitRating = async (isWatched) => {
     if (!selectedMovie || userRating === 0) return;
 
     const existingWatched = watched.find(m => m.id === selectedMovie.id);
+    const existingRated = rated.find(m => m.id === selectedMovie.id);
+    const existing = existingWatched || existingRated;
 
-    if (existingWatched) {
+    if (existing) {
+      // Bestaande beoordeling bijwerken
       try {
-        await fetch(`${API_URL}/api/user/${USER_ID}/watched/${existingWatched.dbId}/rating`, {
+        await fetch(`${API_URL}/api/user/${USER_ID}/watched/${existing.dbId}/rating`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rating: userRating })
         });
-        setWatched(prev => prev.map(m =>
-          m.id === selectedMovie.id ? { ...m, userRating } : m
-        ));
+        if (existingWatched) {
+          setWatched(prev => prev.map(m => m.id === selectedMovie.id ? { ...m, userRating } : m));
+        } else {
+          setRated(prev => prev.map(m => m.id === selectedMovie.id ? { ...m, userRating } : m));
+        }
       } catch (error) {
         console.error('Error updating rating:', error);
       }
     } else {
+      // Nieuwe beoordeling opslaan
       try {
         const response = await fetch(`${API_URL}/api/user/${USER_ID}/watched`, {
           method: 'POST',
@@ -270,21 +300,28 @@ function App() {
             type: selectedMovie.type,
             platforms: selectedMovie.platforms || [],
             posterUrl: selectedMovie.poster,
-            rating: userRating
+            rating: userRating,
+            isWatched
           })
         });
         const saved = await response.json();
-        setWatched(prev => [{
+        const newItem = {
           ...selectedMovie,
           dbId: saved.id,
           userRating,
           watchedDate: saved.watched_date || new Date().toISOString()
-        }, ...prev]);
+        };
+        if (isWatched) {
+          setWatched(prev => [newItem, ...prev]);
+        } else {
+          setRated(prev => [newItem, ...prev]);
+        }
+        // Verwijder uit watchlist
         setWatchlist(prev => prev.filter(m => m.id !== selectedMovie.id));
-        // Refresh preferences na rating (genre profiel wordt auto-updated)
+        // Refresh genre profiel
         setTimeout(() => fetchPreferences(), 2000);
       } catch (error) {
-        console.error('Error marking as watched:', error);
+        console.error('Error submitting rating:', error);
       }
     }
 
@@ -364,9 +401,10 @@ function App() {
 
   // ===== HERBRUIKBARE MOVIE CARD =====
   const renderMovieCard = (movie, showRecommendedBecause = false) => {
-    const existingRating = getWatchedRating(movie.id);
+    const existingRating = getWatchedRating(movie.id) || rated.find(m => m.id === movie.id)?.userRating;
     const isOnWatchlist = watchlist.find(m => m.id === movie.id);
     const isWatched = watched.find(m => m.id === movie.id);
+    const isRated = rated.find(m => m.id === movie.id);
 
     const isSelected = selectedDetail && selectedDetail.id === movie.id;
 
@@ -431,10 +469,11 @@ function App() {
             <button
               className="btn btn-primary"
               onClick={(e) => { e.stopPropagation(); addToWatchlist(movie); }}
-              disabled={!!isOnWatchlist || !!isWatched}
+              disabled={!!isOnWatchlist || !!isWatched || !!isRated}
             >
               {isOnWatchlist ? '✓ Op lijst' :
-               isWatched ? '✓ Gezien' : '+ Watchlist'}
+               isWatched ? '✓ Gezien' :
+               isRated ? '👎 Beoordeeld' : '+ Watchlist'}
             </button>
             <button
               className="btn btn-secondary"
@@ -1153,16 +1192,37 @@ function App() {
                 )}
               </div>
 
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', marginTop: '20px' }}
-                onClick={markAsWatched}
-                disabled={userRating === 0}
-              >
-                {watched.find(m => m.id === selectedMovie?.id)
-                  ? '✓ Rating Bijwerken'
-                  : '✓ Markeer als Gezien'}
-              </button>
+              {(watched.find(m => m.id === selectedMovie?.id) || rated.find(m => m.id === selectedMovie?.id)) ? (
+                // Al beoordeeld of gezien: rating bijwerken
+                <button
+                  className="btn btn-primary"
+                  style={{ width: '100%', marginTop: '20px' }}
+                  onClick={() => submitRating(!!watched.find(m => m.id === selectedMovie?.id))}
+                  disabled={userRating === 0}
+                >
+                  ✓ Rating Bijwerken
+                </button>
+              ) : (
+                // Nieuw: twee opties
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
+                  <button
+                    className="btn btn-primary"
+                    style={{ width: '100%' }}
+                    onClick={() => submitRating(true)}
+                    disabled={userRating === 0}
+                  >
+                    ✓ Gezien & Beoordelen
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ width: '100%' }}
+                    onClick={() => submitRating(false)}
+                    disabled={userRating === 0}
+                  >
+                    👎 Beoordelen zonder Gezien
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
