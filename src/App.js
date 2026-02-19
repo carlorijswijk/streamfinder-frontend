@@ -634,8 +634,9 @@ function App() {
                 {[['all', 'Alles'], ['movie', '🎬 Films'], ['tv', '📺 Series']].map(([val, label]) => (
                   <button
                     key={val}
+                    type="button"
                     className={`filter-btn ${searchFilter === val ? 'active' : ''}`}
-                    onClick={() => setSearchFilter(val)}
+                    onClick={(e) => { e.preventDefault(); setSearchFilter(val); }}
                   >{label}</button>
                 ))}
               </div>
@@ -759,8 +760,9 @@ function App() {
                 {[['added', 'Toegevoegd'], ['title', 'Titel'], ['rating', 'TMDb Rating']].map(([val, label]) => (
                   <button
                     key={val}
+                    type="button"
                     className={`filter-btn ${watchlistSort === val ? 'active' : ''}`}
-                    onClick={() => setWatchlistSort(val)}
+                    onClick={(e) => { e.preventDefault(); setWatchlistSort(val); }}
                   >{label}</button>
                 ))}
               </div>
@@ -844,8 +846,9 @@ function App() {
                 {[['date', 'Datum'], ['title', 'Titel'], ['rating', 'Jouw Rating']].map(([val, label]) => (
                   <button
                     key={val}
+                    type="button"
                     className={`filter-btn ${watchedSort === val ? 'active' : ''}`}
-                    onClick={() => setWatchedSort(val)}
+                    onClick={(e) => { e.preventDefault(); setWatchedSort(val); }}
                   >{label}</button>
                 ))}
               </div>
