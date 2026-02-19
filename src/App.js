@@ -630,16 +630,18 @@ function App() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <div className="search-filters">
-                {[['all', 'Alles'], ['movie', '🎬 Films'], ['tv', '📺 Series']].map(([val, label]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    className={`filter-btn ${searchFilter === val ? 'active' : ''}`}
-                    onClick={(e) => { e.preventDefault(); setSearchFilter(val); }}
-                  >{label}</button>
-                ))}
-              </div>
+              {searchQuery && (
+                <div className="search-filters">
+                  {[['all', 'Alles'], ['movie', '🎬 Films'], ['tv', '📺 Series']].map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      className={`filter-btn ${searchFilter === val ? 'active' : ''}`}
+                      onClick={(e) => { e.preventDefault(); setSearchFilter(val); }}
+                    >{label}</button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Zoekresultaten (vervangt alles als er een zoekopdracht is) */}
