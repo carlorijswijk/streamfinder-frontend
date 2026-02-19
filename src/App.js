@@ -578,6 +578,31 @@ function App() {
     );
   };
 
+  // ===== STATISTIEKEN BEREKENINGEN =====
+  const platformStats = ALL_PLATFORMS.map(p => ({
+    name: p,
+    count: watched.filter(m => m.platforms && m.platforms.includes(p)).length
+  })).filter(p => p.count > 0).sort((a, b) => b.count - a.count);
+  const maxPlatformCount = platformStats[0]?.count || 1;
+
+  const genreStats = userGenres.slice(0, 6).map((genre, i) => ({
+    name: genre,
+    score: Math.max(10 - i * 1.5, 1)
+  }));
+  const maxGenreScore = genreStats[0]?.score || 1;
+
+  const favorites = watched.filter(m => m.userRating === 5);
+
+  const decadeStats = watched.reduce((acc, m) => {
+    if (!m.year) return acc;
+    const decade = Math.floor(Number(m.year) / 10) * 10;
+    const label = `${decade}s`;
+    acc[label] = (acc[label] || 0) + 1;
+    return acc;
+  }, {});
+  const decadeEntries = Object.entries(decadeStats).sort((a, b) => b[0].localeCompare(a[0]));
+  const maxDecadeCount = Math.max(...Object.values(decadeStats), 1);
+
   // ===== RENDER =====
   return (
     <div className="App">
@@ -615,6 +640,12 @@ function App() {
             onClick={() => { setCurrentView('profiel'); closeDetail(); }}
           >
             👤 Profiel
+          </button>
+          <button
+            className={`nav-button ${currentView === 'stats' ? 'active' : ''}`}
+            onClick={() => { setCurrentView('stats'); closeDetail(); }}
+          >
+            📊 Statistieken
           </button>
         </nav>
 
@@ -981,6 +1012,103 @@ function App() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ===== STATISTIEKEN TAB ===== */}
+        {currentView === 'stats' && (
+          <div>
+            <h2 style={{ marginBottom: '24px', fontSize: '20px' }}>📊 Mijn Statistieken</h2>
+
+            {/* SECTIE 1: Platform verdeling */}
+            <div className="profile-section">
+              <h3>Bekeken per platform</h3>
+              <p className="profile-description">Op welk platform heb je de meeste titels bekeken?</p>
+              {platformStats.length === 0 ? (
+                <p style={{ color: '#888', fontStyle: 'italic' }}>Nog geen platformdata bekend bij bekeken titels.</p>
+              ) : (
+                <div className="stat-bars">
+                  {platformStats.map(p => (
+                    <div key={p.name} className="stat-bar-row">
+                      <div className="stat-bar-label" style={{ color: getPlatformColor(p.name) }}>{p.name}</div>
+                      <div className="stat-bar-track">
+                        <div className="stat-bar-fill"
+                          style={{ width: `${(p.count / maxPlatformCount) * 100}%`, backgroundColor: getPlatformColor(p.name) }}
+                        />
+                      </div>
+                      <div className="stat-bar-count">{p.count}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SECTIE 2: Top genres */}
+            <div className="profile-section">
+              <h3>Top genres</h3>
+              <p className="profile-description">Jouw favoriete genres op basis van beoordelingen.</p>
+              {genreStats.length === 0 ? (
+                <p style={{ color: '#888', fontStyle: 'italic' }}>Beoordeel meer titels om je genre profiel op te bouwen.</p>
+              ) : (
+                <div className="stat-bars">
+                  {genreStats.map(g => (
+                    <div key={g.name} className="stat-bar-row">
+                      <div className="stat-bar-label">{g.name}</div>
+                      <div className="stat-bar-track">
+                        <div className="stat-bar-fill"
+                          style={{ width: `${(g.score / maxGenreScore) * 100}%`, backgroundColor: '#f5c518' }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SECTIE 3: Favorieten */}
+            <div className="profile-section">
+              <h3>⭐⭐⭐⭐⭐ Favorieten</h3>
+              <p className="profile-description">{favorites.length} titel{favorites.length !== 1 ? 's' : ''} met 5 sterren — klik voor details.</p>
+              {favorites.length === 0 ? (
+                <p style={{ color: '#888', fontStyle: 'italic' }}>Nog geen 5-sterren beoordelingen.</p>
+              ) : (
+                <div className="favorites-grid">
+                  {favorites.map(m => (
+                    <div key={m.id} className="favorite-item" onClick={() => fetchDetail(m)} title={m.title}>
+                      {m.poster
+                        ? <img src={m.poster} alt={m.title} />
+                        : <div className="no-poster">🎬</div>
+                      }
+                      <div className="favorite-title">{m.title}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SECTIE 4: Uitjaar per decennium */}
+            <div className="profile-section">
+              <h3>Uitjaar van bekeken titels</h3>
+              <p className="profile-description">Uit welk tijdperk komen jouw bekeken titels?</p>
+              {decadeEntries.length === 0 ? (
+                <p style={{ color: '#888', fontStyle: 'italic' }}>Nog geen data beschikbaar.</p>
+              ) : (
+                <div className="stat-bars">
+                  {decadeEntries.map(([label, count]) => (
+                    <div key={label} className="stat-bar-row">
+                      <div className="stat-bar-label">{label}</div>
+                      <div className="stat-bar-track">
+                        <div className="stat-bar-fill"
+                          style={{ width: `${(count / maxDecadeCount) * 100}%`, backgroundColor: '#888' }}
+                        />
+                      </div>
+                      <div className="stat-bar-count">{count}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {renderDetailTile()}
           </div>
         )}
 
