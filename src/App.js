@@ -123,6 +123,7 @@ function App() {
       });
       setUserPlatforms(platforms);
       setPlatformsChanged(false);
+      fetchDiscoverContent();
     } catch (error) {
       console.error('Error saving preferences:', error);
     }
