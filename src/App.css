@@ -1175,3 +1175,24 @@ nav {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ===== TRAILER KNOP ===== */
+.trailer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #e50914;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 10px 20px;
+  border-radius: 6px;
+  text-decoration: none;
+  margin: 12px 0 4px;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.trailer-btn:hover {
+  background: #b20710;
+  transform: scale(1.02);
+}

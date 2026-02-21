@@ -530,6 +530,18 @@ function App() {
                   </div>
                 )}
 
+                {/* Trailer knop */}
+                {detail.trailerKey && (
+                  <a
+                    href={`https://www.youtube.com/watch?v=${detail.trailerKey}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="trailer-btn"
+                  >
+                    ▶ Bekijk Trailer
+                  </a>
+                )}
+
                 {/* User rating */}
                 {existingRating && (
                   <div className="detail-user-rating">
