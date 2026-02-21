@@ -5,7 +5,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 const USER_ID = '1'; // Default user tot authenticatie is gebouwd
 
 // Beschikbare streaming platforms
-const ALL_PLATFORMS = ['Netflix', 'Amazon Prime', 'Disney+', 'HBO Max', 'Videoland', 'NPO Start'];
+const ALL_PLATFORMS = ['Netflix', 'Amazon Prime', 'Disney+', 'HBO Max', 'Videoland', 'NPO Start', 'Picl'];
 
 function App() {
   const [currentView, setCurrentView] = useState('discover');
